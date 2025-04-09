@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:cronowork/models/category.dart';
+import 'package:cronowork/models/session.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -43,6 +44,131 @@ class _ReportsScreenState extends State<ReportsScreen> {
           _endDate = picked;
         }
       });
+    }
+  }
+
+  Future<void> _deleteSession(String sessionId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Confirmar eliminación'),
+            content: const Text(
+              '¿Estás seguro de que deseas eliminar esta sesión?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed == true) {
+      await FirebaseFirestore.instance
+          .collection('sessions')
+          .doc(sessionId)
+          .delete();
+    }
+  }
+
+  Future<void> _editSession(Session session) async {
+    final TextEditingController descriptionController = TextEditingController(
+      text: session.description,
+    );
+    String? selectedCategoryId = session.categoryId;
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Editar sesión'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                StreamBuilder<QuerySnapshot>(
+                  stream:
+                      FirebaseFirestore.instance
+                          .collection('categories')
+                          .where(
+                            'userId',
+                            isEqualTo: FirebaseAuth.instance.currentUser!.uid,
+                          )
+                          .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const CircularProgressIndicator();
+                    }
+
+                    final categories =
+                        snapshot.data!.docs
+                            .map(
+                              (doc) => Category.fromMap(
+                                doc.id,
+                                doc.data() as Map<String, dynamic>,
+                              ),
+                            )
+                            .toList();
+
+                    return DropdownButtonFormField<String>(
+                      value: selectedCategoryId,
+                      decoration: const InputDecoration(
+                        labelText: 'Categoría',
+                        border: OutlineInputBorder(),
+                      ),
+                      items:
+                          categories.map((category) {
+                            return DropdownMenuItem<String>(
+                              value: category.id,
+                              child: Text(category.name),
+                            );
+                          }).toList(),
+                      onChanged: (value) {
+                        selectedCategoryId = value;
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed:
+                    () => Navigator.pop(context, {
+                      'description': descriptionController.text,
+                      'categoryId': selectedCategoryId,
+                    }),
+                child: const Text('Guardar'),
+              ),
+            ],
+          ),
+    );
+
+    if (result != null) {
+      await FirebaseFirestore.instance
+          .collection('sessions')
+          .doc(session.id)
+          .update({
+            'description': result['description'],
+            'categoryId': result['categoryId'],
+          });
     }
   }
 
@@ -258,7 +384,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                 : null,
                       )
                       .where('categoryId', isEqualTo: _selectedCategoryId ?? '')
-                      .orderBy('createdAt', descending: true)
+                      .orderBy('startTime', descending: true)
                       .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -269,88 +395,64 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final sessions = snapshot.data?.docs ?? [];
-
-                if (sessions.isEmpty) {
-                  return const Center(
-                    child: Text('No hay sesiones registradas'),
-                  );
-                }
+                final sessions =
+                    snapshot.data!.docs.map((doc) {
+                      return Session.fromMap(
+                        doc.id,
+                        doc.data() as Map<String, dynamic>,
+                      );
+                    }).toList();
 
                 return ListView.builder(
-                  padding: const EdgeInsets.all(16),
                   itemCount: sessions.length,
                   itemBuilder: (context, index) {
-                    final session =
-                        sessions[index].data() as Map<String, dynamic>;
-                    final startTime =
-                        (session['startTime'] as Timestamp).toDate();
-                    final endTime = (session['endTime'] as Timestamp).toDate();
-                    final duration = session['duration'] as int;
-                    final description = session['description'] as String;
-                    final categoryId = session['categoryId'] as String;
-
+                    final session = sessions[index];
                     return Card(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      color: Colors.grey[50],
-                      elevation: 1,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 8.0,
+                      ),
+                      child: ListTile(
+                        title: Text(session.description),
+                        subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  DateFormat('dd/MM/yyyy').format(startTime),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                Text(
-                                  '${DateFormat('HH:mm:ss').format(startTime)} - ${DateFormat('HH:mm:ss').format(endTime)}',
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                              ],
+                            Text(
+                              'Fecha: ${DateFormat('dd/MM/yyyy').format(session.startTime)}',
                             ),
-                            const SizedBox(height: 8),
+                            Text(
+                              'Duración: ${_formatDuration(session.duration)}',
+                            ),
                             StreamBuilder<DocumentSnapshot>(
                               stream:
                                   FirebaseFirestore.instance
                                       .collection('categories')
-                                      .doc(categoryId)
+                                      .doc(session.categoryId)
                                       .snapshots(),
                               builder: (context, categorySnapshot) {
                                 if (categorySnapshot.hasData) {
                                   final category = Category.fromMap(
-                                    categoryId,
+                                    session.categoryId,
                                     categorySnapshot.data!.data()
                                         as Map<String, dynamic>,
                                   );
-                                  return Text(
-                                    'Categoría: ${category.name}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.blue,
-                                    ),
-                                  );
+                                  return Text('Categoría: ${category.name}');
                                 }
                                 return const SizedBox.shrink();
                               },
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Duración: ${_formatDuration(duration)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                              ),
+                          ],
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              onPressed: () => _editSession(session),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              description,
-                              style: const TextStyle(fontSize: 14),
+                            IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () => _deleteSession(session.id),
                             ),
                           ],
                         ),
