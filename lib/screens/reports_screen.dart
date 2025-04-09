@@ -421,6 +421,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               'Fecha: ${DateFormat('dd/MM/yyyy').format(session.startTime)}',
                             ),
                             Text(
+                              'Hora: ${DateFormat('HH:mm:ss').format(session.startTime)} - ${session.endTime != null ? DateFormat('HH:mm:ss').format(session.endTime!) : 'En curso'}',
+                            ),
+                            Text(
                               'Duración: ${_formatDuration(session.duration)}',
                             ),
                             StreamBuilder<DocumentSnapshot>(
