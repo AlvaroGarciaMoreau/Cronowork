@@ -1,0 +1,27 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "cronowork-1d33b",
+          "appId": "1:543445107634:android:e6aeaee8f3e80b9e499aab",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "cronowork-1d33b",
+          "configurations": {
+            "android": "1:543445107634:android:e6aeaee8f3e80b9e499aab",
+            "web": "1:543445107634:web:f99d115c69d65ad9499aab",
+            "windows": "1:543445107634:web:de800e3e94d4613d499aab"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "543445107634",
+    "project_id": "cronowork-1d33b",
+    "storage_bucket": "cronowork-1d33b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:543445107634:android:e6aeaee8f3e80b9e499aab",
+        "android_client_info": {
+          "package_name": "com.moreausoft.cronowork"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHinfehSlak7ODjiA4lbtFL3b7laRsz-4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
