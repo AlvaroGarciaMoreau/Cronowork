@@ -19,6 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
   String? _selectedCategoryId;
+  Duration _totalElapsedTime = Duration.zero;
 
   @override
   void dispose() {
@@ -26,25 +27,65 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _toggleTimer() {
-    setState(() {
-      if (!_isRunning) {
+  void _startTimer() {
+    if (!_isRunning) {
+      setState(() {
         _startTime = DateTime.now();
         _isRunning = true;
         _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          setState(() {
-            _elapsedTime = DateTime.now().difference(_startTime!);
-          });
+          if (_startTime != null) {
+            setState(() {
+              _elapsedTime = DateTime.now().difference(_startTime!);
+            });
+          }
         });
-      } else {
-        _isRunning = false;
-        _timer?.cancel();
-        _showDescriptionDialog();
-      }
-    });
+      });
+    }
   }
 
-  Future<void> _showNewCategoryDialog() async {
+  void _pauseTimer() {
+    if (_isRunning) {
+      setState(() {
+        _isRunning = false;
+        _timer?.cancel();
+        _totalElapsedTime += _elapsedTime;
+        _elapsedTime = Duration.zero;
+      });
+    }
+  }
+
+  void _cancelTimer() {
+    if (_isRunning) {
+      setState(() {
+        _isRunning = false;
+        _timer?.cancel();
+        _elapsedTime = Duration.zero;
+        _totalElapsedTime = Duration.zero;
+        _startTime = null;
+      });
+    }
+  }
+
+  void _saveSession() {
+    if (_isRunning) {
+      setState(() {
+        _isRunning = false;
+        _timer?.cancel();
+        _totalElapsedTime += _elapsedTime;
+        _elapsedTime = Duration.zero;
+      });
+    }
+
+    if (_totalElapsedTime > Duration.zero) {
+      _showDescriptionDialog();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay tiempo acumulado para guardar')),
+      );
+    }
+  }
+
+  Future<String?> _showNewCategoryDialog() async {
     final categoryController = TextEditingController();
     final result = await showDialog<String>(
       context: context,
@@ -82,9 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
     );
 
-    if (result != null) {
-      await _saveCategory(result);
-    }
+    return result;
   }
 
   Future<void> _saveCategory(String name) async {
@@ -117,144 +156,194 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = _auth.currentUser;
     if (user == null) return;
 
+    String? selectedCategoryId = _selectedCategoryId;
+
     final result = await showDialog<Map<String, String>>(
       context: context,
       barrierDismissible: false,
       builder:
-          (context) => AlertDialog(
-            title: const Text('Descripción de la sesión'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    hintText: 'Describe lo que has trabajado',
-                    border: OutlineInputBorder(),
+          (context) => StatefulBuilder(
+            builder:
+                (context, setState) => AlertDialog(
+                  title: const Text(
+                    'Descripción de la sesión',
+                    style: TextStyle(fontSize: 20),
                   ),
-                  maxLines: 3,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                const SizedBox(height: 16),
-                StreamBuilder<QuerySnapshot>(
-                  stream:
-                      _firestore
-                          .collection('categories')
-                          .where('userId', isEqualTo: user.uid)
-                          .snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const CircularProgressIndicator();
-                    }
-
-                    final categories =
-                        snapshot.data!.docs
-                            .map(
-                              (doc) => Category.fromMap(
-                                doc.id,
-                                doc.data() as Map<String, dynamic>,
-                              ),
-                            )
-                            .toList();
-
-                    if (categories.isEmpty) {
-                      return Column(
-                        children: [
-                          const SizedBox(height: 8),
-                          const Text(
-                            'No hay categorías creadas',
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontWeight: FontWeight.bold,
+                  content: SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.8,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: descriptionController,
+                          decoration: const InputDecoration(
+                            hintText: 'Describe lo que has trabajado',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Por favor, crea una categoría usando el botón +',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _showNewCategoryDialog();
-                            },
-                            icon: const Icon(Icons.add),
-                            label: const Text('Crear categoría'),
-                          ),
-                        ],
-                      );
-                    }
+                          maxLines: 3,
+                          textCapitalization: TextCapitalization.sentences,
+                        ),
+                        const SizedBox(height: 16),
+                        StreamBuilder<QuerySnapshot>(
+                          stream:
+                              _firestore
+                                  .collection('categories')
+                                  .where('userId', isEqualTo: user.uid)
+                                  .snapshots(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
 
-                    return DropdownButtonFormField<String>(
-                      value: _selectedCategoryId,
-                      decoration: const InputDecoration(
-                        labelText: 'Categoría',
-                        border: OutlineInputBorder(),
-                      ),
-                      items:
-                          categories.map((category) {
-                            return DropdownMenuItem<String>(
-                              value: category.id,
-                              child: Text(category.name),
+                            final categories =
+                                snapshot.data!.docs
+                                    .map(
+                                      (doc) => Category.fromMap(
+                                        doc.id,
+                                        doc.data() as Map<String, dynamic>,
+                                      ),
+                                    )
+                                    .toList();
+
+                            if (categories.isEmpty) {
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    'No hay categorías creadas',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Por favor, crea una categoría',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Colors.grey),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton.icon(
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Crear categoría'),
+                                    onPressed: () async {
+                                      final newCategory =
+                                          await _showNewCategoryDialog();
+                                      if (newCategory != null) {
+                                        await _saveCategory(newCategory);
+                                      }
+                                    },
+                                  ),
+                                ],
+                              );
+                            }
+
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                DropdownButtonFormField<String>(
+                                  value: selectedCategoryId,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Categoría',
+                                    border: OutlineInputBorder(),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  items:
+                                      categories.map((category) {
+                                        return DropdownMenuItem<String>(
+                                          value: category.id,
+                                          child: Text(category.name),
+                                        );
+                                      }).toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      selectedCategoryId = value;
+                                    });
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                TextButton.icon(
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Crear nueva categoría'),
+                                  onPressed: () async {
+                                    final newCategory =
+                                        await _showNewCategoryDialog();
+                                    if (newCategory != null) {
+                                      await _saveCategory(newCategory);
+                                    }
+                                  },
+                                ),
+                              ],
                             );
-                          }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCategoryId = value;
-                        });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                    StreamBuilder<QuerySnapshot>(
+                      stream:
+                          _firestore
+                              .collection('categories')
+                              .where('userId', isEqualTo: user.uid)
+                              .snapshots(),
+                      builder: (context, snapshot) {
+                        return ElevatedButton(
+                          onPressed: () {
+                            if (descriptionController.text.isNotEmpty &&
+                                selectedCategoryId != null) {
+                              final capitalizedText =
+                                  descriptionController.text[0].toUpperCase() +
+                                  (descriptionController.text.length > 1
+                                      ? descriptionController.text.substring(1)
+                                      : '');
+                              Navigator.pop(context, {
+                                'description': capitalizedText,
+                                'categoryId': selectedCategoryId!,
+                              });
+                            }
+                          },
+                          child: const Text('Guardar'),
+                        );
                       },
-                    );
-                  },
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
-              ),
-              StreamBuilder<QuerySnapshot>(
-                stream:
-                    _firestore
-                        .collection('categories')
-                        .where('userId', isEqualTo: user.uid)
-                        .snapshots(),
-                builder: (context, snapshot) {
-                  return ElevatedButton(
-                    onPressed: () {
-                      if (descriptionController.text.isNotEmpty &&
-                          _selectedCategoryId != null) {
-                        final capitalizedText =
-                            descriptionController.text[0].toUpperCase() +
-                            (descriptionController.text.length > 1
-                                ? descriptionController.text.substring(1)
-                                : '');
-                        Navigator.pop(context, {
-                          'description': capitalizedText,
-                          'categoryId': _selectedCategoryId!,
-                        });
-                      }
-                    },
-                    child: const Text('Guardar'),
-                  );
-                },
-              ),
-            ],
           ),
     );
 
     if (result != null) {
-      await _saveSession(result['description']!, result['categoryId']!);
+      setState(() {
+        _selectedCategoryId = result['categoryId'];
+      });
+      await _saveSessionToFirestore(
+        result['description']!,
+        result['categoryId']!,
+      );
     }
   }
 
-  Future<void> _saveSession(String description, String categoryId) async {
+  Future<void> _saveSessionToFirestore(
+    String description,
+    String categoryId,
+  ) async {
     try {
       final user = _auth.currentUser;
 
-      if (user == null) {
+      if (user == null || _startTime == null) {
         return;
       }
 
@@ -262,7 +351,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'userId': user.uid,
         'startTime': Timestamp.fromDate(_startTime!),
         'endTime': Timestamp.fromDate(DateTime.now()),
-        'duration': _elapsedTime.inSeconds,
+        'duration': _totalElapsedTime.inSeconds,
         'description': description,
         'categoryId': categoryId,
         'createdAt': FieldValue.serverTimestamp(),
@@ -278,6 +367,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _elapsedTime = Duration.zero;
+        _totalElapsedTime = Duration.zero;
         _startTime = null;
         _selectedCategoryId = null;
       });
@@ -334,30 +424,90 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                _formatDuration(_elapsedTime),
+                _formatDuration(_totalElapsedTime + _elapsedTime),
                 style: const TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: _toggleTimer,
-                icon: Icon(_isRunning ? Icons.pause : Icons.play_arrow),
-                label: Text(_isRunning ? 'Pausar' : 'Iniciar'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Column(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _isRunning ? null : _startTimer,
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Iniciar'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: _isRunning ? _pauseTimer : null,
+                        icon: const Icon(Icons.pause),
+                        label: const Text('Pausar'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(width: 32),
+                  Column(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _saveSession,
+                        icon: const Icon(Icons.save),
+                        label: const Text('Guardar'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: _isRunning ? _cancelTimer : null,
+                        icon: const Icon(Icons.stop),
+                        label: const Text('Cancelar'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                          backgroundColor: Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _showNewCategoryDialog,
-          child: const Icon(Icons.add),
+        floatingActionButton: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            FloatingActionButton(
+              onPressed: _showNewCategoryDialog,
+              child: const Icon(Icons.add),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Añadir categoría',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
         ),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: 0,

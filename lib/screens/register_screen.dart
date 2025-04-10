@@ -12,7 +12,6 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -36,7 +35,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -63,21 +61,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Text('Verificación de correo'),
-            content: const Text(
-              'Se ha enviado un correo de verificación. Por favor, verifica tu correo electrónico antes de iniciar sesión.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.pushReplacementNamed(context, '/login');
-                },
-                child: const Text('Aceptar'),
+          builder:
+              (context) => AlertDialog(
+                title: const Text('Verificación de correo'),
+                content: const Text(
+                  'Se ha enviado un correo de verificación. Por favor, verifica tu correo electrónico antes de iniciar sesión.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.pushReplacementNamed(context, '/login');
+                    },
+                    child: const Text('Aceptar'),
+                  ),
+                ],
               ),
-            ],
-          ),
         );
       }
     } on FirebaseAuthException catch (e) {
@@ -96,11 +95,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _getErrorMessage(String code) {
     switch (code) {
       case 'email-already-in-use':
-        return 'Este correo electrónico ya está en uso';
+        return 'Este correo electrónico ya está registrado';
       case 'invalid-email':
         return 'Correo electrónico inválido';
       case 'operation-not-allowed':
-        return 'La operación no está permitida';
+        return 'El registro no está habilitado';
       case 'weak-password':
         return 'La contraseña es demasiado débil';
       default:
@@ -111,40 +110,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Registro'),
-      ),
+      appBar: AppBar(title: const Text('Registro')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Form(
             key: _formKey,
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Crear cuenta',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'Registro',
+                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 32),
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre completo',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor ingresa tu nombre';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 48),
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
@@ -155,9 +136,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Por favor ingresa tu correo electrónico';
-                    }
-                    if (!value.contains('@') || !value.contains('.')) {
-                      return 'Por favor ingresa un correo electrónico válido';
                     }
                     return null;
                   },
@@ -226,18 +204,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 8),
                   Text(
                     _errorMessage!,
-                    style: const TextStyle(
-                      color: Colors.red,
-                    ),
+                    style: const TextStyle(color: Colors.red),
                     textAlign: TextAlign.center,
                   ),
                 ],
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _register,
-                  child: _isLoading
-                      ? const CircularProgressIndicator()
-                      : const Text('Registrarse'),
+                  child:
+                      _isLoading
+                          ? const CircularProgressIndicator()
+                          : const Text('Registrarse'),
                 ),
                 const SizedBox(height: 16),
                 TextButton(

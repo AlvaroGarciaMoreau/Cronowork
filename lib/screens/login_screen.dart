@@ -76,14 +76,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      await _auth.sendPasswordResetEmail(
-        email: _emailController.text.trim(),
-      );
+      await _auth.sendPasswordResetEmail(email: _emailController.text.trim());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content:
-                Text('Se ha enviado un correo para restablecer tu contraseña'),
+            content: Text(
+              'Se ha enviado un correo para restablecer tu contraseña',
+            ),
           ),
         );
       }
@@ -114,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(16.0),
           child: Form(
             key: _formKey,
             child: Column(
@@ -123,18 +122,19 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const Text(
                   'CronoWork',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 24),
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
                     labelText: 'Correo electrónico',
                     border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                   ),
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
@@ -144,12 +144,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: 'Contraseña',
                     border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -175,30 +179,42 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   Text(
                     _errorMessage!,
-                    style: const TextStyle(
-                      color: Colors.red,
-                    ),
+                    style: const TextStyle(color: Colors.red, fontSize: 12),
                     textAlign: TextAlign.center,
                   ),
                 ],
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: _resetPassword,
-                  child: const Text('¿Olvidaste tu contraseña?'),
+                  child: const Text(
+                    '¿Olvidaste tu contraseña?',
+                    style: TextStyle(fontSize: 12),
+                  ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _signIn,
-                  child: _isLoading
-                      ? const CircularProgressIndicator()
-                      : const Text('Iniciar sesión'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(),
+                          )
+                          : const Text('Iniciar sesión'),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 TextButton(
                   onPressed: () {
                     Navigator.pushNamed(context, '/register');
                   },
-                  child: const Text('¿No tienes cuenta? Regístrate'),
+                  child: const Text(
+                    '¿No tienes cuenta? Regístrate',
+                    style: TextStyle(fontSize: 12),
+                  ),
                 ),
               ],
             ),
