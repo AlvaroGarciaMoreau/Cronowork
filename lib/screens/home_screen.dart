@@ -21,6 +21,236 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _selectedCategoryId;
   Duration _totalElapsedTime = Duration.zero;
 
+  final user = FirebaseAuth.instance.currentUser!;
+
+  Future<void> _showNewSessionDialog() async {
+    final descriptionController = TextEditingController();
+    final startTimeController = TextEditingController();
+    final endTimeController = TextEditingController();
+    String? selectedCategoryId;
+    DateTime? selectedStartTime;
+    DateTime? selectedEndTime;
+
+    // Obtener categorías
+    List<QueryDocumentSnapshot> categories = [];
+    try {
+      final snapshot =
+          await _firestore
+              .collection('categories')
+              .where('userId', isEqualTo: user.uid)
+              .get();
+      categories = snapshot.docs;
+    } catch (e) {
+      debugPrint('Error fetching categories: $e');
+    }
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Nueva Sesión'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Descripción',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: selectedCategoryId,
+                      decoration: const InputDecoration(
+                        labelText: 'Categoría',
+                        border: OutlineInputBorder(),
+                      ),
+                      items:
+                          categories.map((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            return DropdownMenuItem<String>(
+                              value: doc.id,
+                              child: Text(data['name']),
+                            );
+                          }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedCategoryId = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: startTimeController,
+                      decoration: const InputDecoration(
+                        labelText: 'Fecha/hora inicio',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      readOnly: true,
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (!context.mounted) return;
+                        if (picked != null) {
+                          final time = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.fromDateTime(DateTime.now()),
+                          );
+                          if (!context.mounted) return;
+                          if (time != null) {
+                            final dt = DateTime(
+                              picked.year,
+                              picked.month,
+                              picked.day,
+                              time.hour,
+                              time.minute,
+                            );
+                            setState(() {
+                              selectedStartTime = dt;
+                              startTimeController.text = dt.toString();
+                            });
+                          }
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: endTimeController,
+                      decoration: const InputDecoration(
+                        labelText: 'Fecha/hora fin (opcional)',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      readOnly: true,
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedStartTime ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (!context.mounted) return;
+                        if (picked != null) {
+                          final time = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.fromDateTime(DateTime.now()),
+                          );
+                          if (!context.mounted) return;
+                          if (time != null) {
+                            final dt = DateTime(
+                              picked.year,
+                              picked.month,
+                              picked.day,
+                              time.hour,
+                              time.minute,
+                            );
+                            setState(() {
+                              selectedEndTime = dt;
+                              endTimeController.text = dt.toString();
+                            });
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (descriptionController.text.isEmpty ||
+                        selectedCategoryId == null ||
+                        startTimeController.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Completa todos los campos obligatorios',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    if (selectedStartTime == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Selecciona fecha/hora de inicio'),
+                        ),
+                      );
+                      return;
+                    }
+                    int? durationSeconds;
+                    if (selectedEndTime != null) {
+                      durationSeconds =
+                          selectedEndTime!
+                              .difference(selectedStartTime!)
+                              .inSeconds;
+                      if (durationSeconds <= 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'La fecha/hora de fin debe ser posterior a la de inicio',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                    }
+                    try {
+                      final sessionData = {
+                        'userId': user.uid,
+                        'categoryId': selectedCategoryId,
+                        'description': descriptionController.text,
+                        'startTime': Timestamp.fromDate(selectedStartTime!),
+                        if (durationSeconds != null)
+                          'duration': durationSeconds,
+                        if (selectedEndTime != null)
+                          'endTime': Timestamp.fromDate(selectedEndTime!),
+                      };
+                      await _firestore.collection('sessions').add(sessionData);
+
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Sesión guardada')),
+                        );
+                      }
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Error al añadir sesión: ${e.toString()}',
+                          ),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -128,9 +358,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _saveCategory(String name) async {
     try {
-      final user = _auth.currentUser;
-      if (user == null) return;
-
       final category = Category(id: '', name: name, userId: user.uid);
 
       await _firestore.collection('categories').add(category.toMap());
@@ -153,10 +380,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _showDescriptionDialog() async {
     final descriptionController = TextEditingController();
-    final user = _auth.currentUser;
-    if (user == null) return;
 
     String? selectedCategoryId = _selectedCategoryId;
+
+    // Check if still mounted before showing dialog
+    if (!mounted) return;
 
     final result = await showDialog<Map<String, String>>(
       context: context,
@@ -258,10 +486,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                   ),
                                   items:
-                                      categories.map((category) {
+                                      categories.map((doc) {
                                         return DropdownMenuItem<String>(
-                                          value: category.id,
-                                          child: Text(category.name),
+                                          value: doc.id,
+                                          child: Text(doc.name),
                                         );
                                       }).toList(),
                                   onChanged: (value) {
@@ -270,20 +498,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                     });
                                   },
                                 ),
-                                const SizedBox(height: 16),
-                                TextButton.icon(
-                                  icon: const Icon(Icons.add),
-                                  label: const Text('Crear nueva categoría'),
-                                  onPressed: () async {
-                                    final newCategory =
-                                        await _showNewCategoryDialog();
-                                    if (newCategory != null) {
-                                      await _saveCategory(newCategory);
-                                    }
-                                  },
-                                ),
                               ],
                             );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text('Crear nueva categoría'),
+                          onPressed: () async {
+                            final newCategory = await _showNewCategoryDialog();
+                            try {
+                              if (newCategory != null) {
+                                await _saveCategory(newCategory);
+                              }
+                            } catch (e) {
+                              debugPrint('Widget might have been disposed: $e');
+                            }
                           },
                         ),
                       ],
@@ -341,9 +572,7 @@ class _HomeScreenState extends State<HomeScreen> {
     String categoryId,
   ) async {
     try {
-      final user = _auth.currentUser;
-
-      if (user == null || _startTime == null) {
+      if (_startTime == null) {
         return;
       }
 
@@ -408,8 +637,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
+    return WillPopScope(
+      onWillPop: () async => false,
       child: Scaffold(
         appBar: AppBar(
           centerTitle: true,
@@ -495,36 +724,62 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        floatingActionButton: Column(
+        floatingActionButton: Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            FloatingActionButton(
-              onPressed: _showNewCategoryDialog,
-              child: const Icon(Icons.add),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                FloatingActionButton(
+                  heroTag: 'addSession',
+                  onPressed: _showNewSessionDialog,
+                  child: const Icon(Icons.event_note),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Añadir sesión',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'Añadir categoría',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+            const SizedBox(width: 16),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                FloatingActionButton(
+                  heroTag: 'addCategory',
+                  onPressed: () async {
+                    final newCategory = await _showNewCategoryDialog();
+                    if (newCategory != null) {
+                      await _saveCategory(newCategory);
+                    }
+                  },
+                  child: const Icon(Icons.add),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Añadir categoría',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
             ),
           ],
-        ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: 0,
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart),
-              label: 'Informes',
-            ),
-          ],
-          onTap: (index) {
-            if (index == 1) {
-              Navigator.pushNamed(context, '/reports');
-            }
-          },
         ),
       ),
     );
+  }
+}
+
+class HomeContentWidget extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(child: Text('Contenido de la pantalla principal'));
+  }
+}
+
+class ReportsScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(child: Text('Contenido de la pantalla de informes'));
   }
 }

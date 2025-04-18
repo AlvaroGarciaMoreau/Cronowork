@@ -22,7 +22,18 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeFirebase();
+    _checkSessionAndInit();
+  }
+
+  Future<void> _checkSessionAndInit() async {
+    await _initializeFirebase();
+    final user = _auth.currentUser;
+    if (user != null) {
+      // Si hay usuario logueado, ir directo al home
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    }
   }
 
   Future<void> _initializeFirebase() async {

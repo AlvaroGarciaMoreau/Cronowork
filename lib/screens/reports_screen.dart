@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:cronowork/models/category.dart';
 import 'package:cronowork/models/session.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -78,108 +80,306 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Future<void> _editSession(Session session) async {
-    final TextEditingController descriptionController = TextEditingController(
+    final descriptionController = TextEditingController(
       text: session.description,
     );
     String? selectedCategoryId = session.categoryId;
 
+    DateTime? selectedStart = session.startTime;
+    DateTime? selectedEnd = session.endTime;
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Editar sesión'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Descripción',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                StreamBuilder<QuerySnapshot>(
-                  stream:
-                      FirebaseFirestore.instance
-                          .collection('categories')
-                          .where(
-                            'userId',
-                            isEqualTo: FirebaseAuth.instance.currentUser!.uid,
-                          )
-                          .snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const CircularProgressIndicator();
-                    }
-
-                    final categories =
-                        snapshot.data!.docs
-                            .map(
-                              (doc) => Category.fromMap(
-                                doc.id,
-                                doc.data() as Map<String, dynamic>,
-                              ),
-                            )
-                            .toList();
-
-                    return DropdownButtonFormField<String>(
-                      value: selectedCategoryId,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Editar sesión'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: descriptionController,
                       decoration: const InputDecoration(
-                        labelText: 'Categoría',
+                        labelText: 'Descripción',
                         border: OutlineInputBorder(),
                       ),
-                      items:
-                          categories.map((category) {
-                            return DropdownMenuItem<String>(
-                              value: category.id,
-                              child: Text(category.name),
-                            );
-                          }).toList(),
-                      onChanged: (value) {
-                        selectedCategoryId = value;
+                    ),
+                    const SizedBox(height: 16),
+                    StreamBuilder<QuerySnapshot>(
+                      stream:
+                          FirebaseFirestore.instance
+                              .collection('categories')
+                              .where(
+                                'userId',
+                                isEqualTo:
+                                    FirebaseAuth.instance.currentUser!.uid,
+                              )
+                              .snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const CircularProgressIndicator();
+                        }
+                        final categories =
+                            snapshot.data!.docs
+                                .map(
+                                  (doc) => Category.fromMap(
+                                    doc.id,
+                                    doc.data() as Map<String, dynamic>,
+                                  ),
+                                )
+                                .toList();
+                        return DropdownButtonFormField<String>(
+                          value: selectedCategoryId,
+                          decoration: const InputDecoration(
+                            labelText: 'Categoría',
+                            border: OutlineInputBorder(),
+                          ),
+                          items:
+                              categories.map((category) {
+                                return DropdownMenuItem<String>(
+                                  value: category.id,
+                                  child: Text(category.name),
+                                );
+                              }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              selectedCategoryId = value;
+                            });
+                          },
+                        );
                       },
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 16),
+                    ListTile(
+                      title: Text(
+                        selectedStart != null
+                            ? 'Inicio: ${DateFormat('dd/MM/yyyy HH:mm').format(selectedStart!)}'
+                            : 'Seleccionar fecha/hora de inicio',
+                      ),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: selectedStart ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                          locale: const Locale('es', 'ES'), // Español
+                        );
+                        if (date != null) {
+                          final time = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.fromDateTime(
+                              selectedStart ?? DateTime.now(),
+                            ),
+                            builder: (context, child) {
+                              return Localizations.override(
+                                context: context,
+                                locale: const Locale('es', 'ES'),
+                                child: child,
+                              );
+                            },
+                          );
+                          if (time != null) {
+                            setState(() {
+                              selectedStart = DateTime(
+                                date.year,
+                                date.month,
+                                date.day,
+                                time.hour,
+                                time.minute,
+                              );
+                            });
+                          }
+                        }
+                      },
+                    ),
+                    ListTile(
+                      title: Text(
+                        selectedEnd != null
+                            ? 'Fin: ${DateFormat('dd/MM/yyyy HH:mm').format(selectedEnd!)}'
+                            : 'Seleccionar fecha/hora de fin (opcional)',
+                      ),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate:
+                              selectedEnd ?? selectedStart ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                          locale: const Locale('es', 'ES'), // Español
+                        );
+                        if (date != null) {
+                          final time = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.fromDateTime(
+                              selectedEnd ?? DateTime.now(),
+                            ),
+                            builder: (context, child) {
+                              return Localizations.override(
+                                context: context,
+                                locale: const Locale('es', 'ES'),
+                                child: child,
+                              );
+                            },
+                          );
+                          if (time != null) {
+                            setState(() {
+                              selectedEnd = DateTime(
+                                date.year,
+                                date.month,
+                                date.day,
+                                time.hour,
+                                time.minute,
+                              );
+                            });
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed:
+                      () => Navigator.pop(context, {
+                        'description': descriptionController.text,
+                        'categoryId': selectedCategoryId,
+                        'startTime': selectedStart,
+                        'endTime': selectedEnd,
+                      }),
+                  child: const Text('Guardar'),
                 ),
               ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed:
-                    () => Navigator.pop(context, {
-                      'description': descriptionController.text,
-                      'categoryId': selectedCategoryId,
-                    }),
-                child: const Text('Guardar'),
-              ),
-            ],
-          ),
+            );
+          },
+        );
+      },
     );
 
     if (result != null) {
+      final updates = {
+        'description': result['description'],
+        'categoryId': result['categoryId'],
+        'startTime': Timestamp.fromDate(result['startTime']),
+        'endTime':
+            result['endTime'] != null
+                ? Timestamp.fromDate(result['endTime'])
+                : null,
+        'duration':
+            result['endTime'] != null
+                ? (result['endTime'] as DateTime)
+                    .difference(result['startTime'] as DateTime)
+                    .inSeconds
+                : session.duration,
+      };
+      // Elimina el campo endTime si es null
+      if (updates['endTime'] == null) updates.remove('endTime');
       await FirebaseFirestore.instance
           .collection('sessions')
           .doc(session.id)
-          .update({
-            'description': result['description'],
-            'categoryId': result['categoryId'],
-          });
+          .update(updates);
     }
+  }
+
+  Future<void> _generatePdfReport(
+    List<Session> sessions,
+    List<Category> categories,
+  ) async {
+    if (_selectedCategoryId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selecciona una categoría para generar el informe'),
+        ),
+      );
+      return;
+    }
+
+    final pdf = pw.Document();
+    final category = categories.firstWhere((c) => c.id == _selectedCategoryId);
+
+    int totalSeconds = sessions.fold(0, (acc, s) => acc + s.duration);
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    final totalEuros = (totalSeconds / 3600 * 10).toStringAsFixed(2);
+
+    pdf.addPage(
+      pw.MultiPage(
+        build:
+            (context) => [
+              pw.Text(
+                'Informe de trabajos realizados',
+                style: pw.TextStyle(
+                  fontSize: 26,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 12),
+              pw.Text(
+                'Categoría: ${category.name}',
+                style: pw.TextStyle(fontSize: 18),
+              ),
+              pw.Text(
+                'Desde: ${_startDate != null ? DateFormat('dd/MM/yyyy').format(_startDate!) : '-'}  '
+                'Hasta: ${_endDate != null ? DateFormat('dd/MM/yyyy').format(_endDate!) : '-'}',
+              ),
+              pw.SizedBox(height: 12),
+              pw.Text(
+                'Total de horas: ${hours}h ${minutes}m ${seconds}s',
+                style: pw.TextStyle(fontSize: 16),
+              ),
+              pw.Text(
+                'Total a pagar: $totalEuros Euros',
+                style: pw.TextStyle(
+                  fontSize: 16,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 16),
+              pw.TableHelper.fromTextArray(
+                headers: [
+                  'Descripción',
+                  'Fecha',
+                  'Hora inicio',
+                  'Hora fin',
+                  'Duración',
+                ],
+                data:
+                    sessions
+                        .map(
+                          (s) => [
+                            s.description,
+                            DateFormat('dd/MM/yyyy').format(s.startTime),
+                            DateFormat('HH:mm:ss').format(s.startTime),
+                            s.endTime != null
+                                ? DateFormat('HH:mm:ss').format(s.endTime!)
+                                : 'En curso',
+                            _formatDuration(s.duration),
+                          ],
+                        )
+                        .toList(),
+              ),
+            ],
+      ),
+    );
+
+    await Printing.sharePdf(
+      bytes: await pdf.save(),
+      filename: 'informe_${category.name}.pdf',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('No hay usuario autenticado')),
-      );
-    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Informes')),
@@ -221,7 +421,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   stream:
                       FirebaseFirestore.instance
                           .collection('categories')
-                          .where('userId', isEqualTo: user.uid)
+                          .where('userId', isEqualTo: user!.uid)
                           .snapshots(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
@@ -467,6 +667,69 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
           ),
         ],
+      ),
+      floatingActionButton: StreamBuilder<QuerySnapshot>(
+        stream:
+            FirebaseFirestore.instance
+                .collection('sessions')
+                .where('userId', isEqualTo: user.uid)
+                .where('categoryId', isEqualTo: _selectedCategoryId ?? '')
+                .where(
+                  'startTime',
+                  isGreaterThanOrEqualTo:
+                      _startDate != null
+                          ? Timestamp.fromDate(_startDate!)
+                          : null,
+                )
+                .where(
+                  'startTime',
+                  isLessThanOrEqualTo:
+                      _endDate != null
+                          ? Timestamp.fromDate(
+                            _endDate!.add(const Duration(days: 1)),
+                          )
+                          : null,
+                )
+                .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const SizedBox.shrink();
+
+          final sessions =
+              snapshot.data!.docs
+                  .map(
+                    (doc) => Session.fromMap(
+                      doc.id,
+                      doc.data() as Map<String, dynamic>,
+                    ),
+                  )
+                  .toList();
+
+          return StreamBuilder<QuerySnapshot>(
+            stream:
+                FirebaseFirestore.instance
+                    .collection('categories')
+                    .where('userId', isEqualTo: user.uid)
+                    .snapshots(),
+            builder: (context, catSnapshot) {
+              if (!catSnapshot.hasData) return const SizedBox.shrink();
+              final categories =
+                  catSnapshot.data!.docs
+                      .map(
+                        (doc) => Category.fromMap(
+                          doc.id,
+                          doc.data() as Map<String, dynamic>,
+                        ),
+                      )
+                      .toList();
+
+              return FloatingActionButton.extended(
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text('Generar informe'),
+                onPressed: () => _generatePdfReport(sessions, categories),
+              );
+            },
+          );
+        },
       ),
     );
   }
