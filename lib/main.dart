@@ -2,6 +2,7 @@ import 'package:cronowork/screens/home_screen.dart';
 import 'package:cronowork/screens/login_screen.dart';
 import 'package:cronowork/screens/register_screen.dart';
 import 'package:cronowork/screens/reports_screen.dart' as reports;
+import 'package:cronowork/screens/categories_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -83,6 +84,7 @@ class _MainScreenState extends State<MainScreen> {
 
   static final List<Widget> _screens = <Widget>[
     HomeScreen(),
+    const CategoriesScreen(),
     reports.ReportsScreen(),
   ];
 
@@ -100,6 +102,10 @@ class _MainScreenState extends State<MainScreen> {
         currentIndex: _selectedIndex,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.category),
+            label: 'Categorías',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bar_chart),
             label: 'Informes',
