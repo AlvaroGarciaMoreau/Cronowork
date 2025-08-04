@@ -771,6 +771,8 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class HomeContentWidget extends StatelessWidget {
+  const HomeContentWidget({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Center(child: Text('Contenido de la pantalla principal'));
@@ -778,6 +780,8 @@ class HomeContentWidget extends StatelessWidget {
 }
 
 class ReportsScreen extends StatelessWidget {
+  const ReportsScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Center(child: Text('Contenido de la pantalla de informes'));
