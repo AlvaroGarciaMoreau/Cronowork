@@ -37,7 +37,7 @@ class CronoWorkApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
-        '/home': (context) => const HomeScreen(),
+        '/home': (context) => const MainScreen(),
         '/reports': (context) => const reports.ReportsScreen(),
       },
       supportedLocales: const [Locale('es', 'ES'), Locale('en', 'US')],

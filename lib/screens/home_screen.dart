@@ -64,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: selectedCategoryId,
+                      initialValue: selectedCategoryId,
                       decoration: const InputDecoration(
                         labelText: 'Categoría',
                         border: OutlineInputBorder(),
@@ -460,7 +460,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 DropdownButtonFormField<String>(
-                                  value: selectedCategoryId,
+                                  initialValue: selectedCategoryId,
                                   decoration: const InputDecoration(
                                     labelText: 'Categoría',
                                     border: OutlineInputBorder(),
@@ -566,7 +566,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
-      await _firestore.collection('sessions').add(sessionData);
+      await _databaseService.addSession(sessionData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

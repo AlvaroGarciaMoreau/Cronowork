@@ -135,7 +135,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                 )
                                 .toList();
                         return DropdownButtonFormField<String>(
-                          value: selectedCategoryId,
+                          initialValue: selectedCategoryId,
                           decoration: const InputDecoration(
                             labelText: 'Categoría',
                             border: OutlineInputBorder(),
@@ -431,7 +431,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     final categories = snapshot.data!;
 
                     return DropdownButtonFormField<String>(
-                      value: _selectedCategoryId,
+                      initialValue: _selectedCategoryId,
                       decoration: const InputDecoration(
                         labelText: 'Filtrar por categoría',
                         border: OutlineInputBorder(),

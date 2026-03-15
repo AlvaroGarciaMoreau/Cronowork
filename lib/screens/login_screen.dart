@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cronowork/firebase_options.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -26,21 +25,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _checkSessionAndInit() async {
-    await _initializeFirebase();
     final user = _auth.currentUser;
     if (user != null) {
-      // Si hay usuario logueado, ir directo al home
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/home');
       }
     }
   }
 
-  Future<void> _initializeFirebase() async {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  }
+
 
   @override
   void dispose() {
