@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:cronowork/models/category.dart';
 import 'package:cronowork/models/session.dart';
+import 'package:cronowork/services/auth_service.dart';
+import 'package:cronowork/services/database_service.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
@@ -19,6 +21,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   DateTime? _endDate;
   int _totalSeconds = 0;
   String? _selectedCategoryId;
+  final _databaseService = DatabaseService();
+  final _authService = AuthService();
 
   String _formatDuration(int seconds) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -379,7 +383,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _authService.currentUser;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Informes')),
@@ -417,26 +421,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                StreamBuilder<QuerySnapshot>(
-                  stream:
-                      FirebaseFirestore.instance
-                          .collection('categories')
-                          .where('userId', isEqualTo: user!.uid)
-                          .snapshots(),
+                StreamBuilder<List<Category>>(
+                  stream: _databaseService.getCategories(user!.uid),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
                       return const SizedBox.shrink();
                     }
 
-                    final categories =
-                        snapshot.data!.docs
-                            .map(
-                              (doc) => Category.fromMap(
-                                doc.id,
-                                doc.data() as Map<String, dynamic>,
-                              ),
-                            )
-                            .toList();
+                    final categories = snapshot.data!;
 
                     return DropdownButtonFormField<String>(
                       value: _selectedCategoryId,
@@ -562,30 +554,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
             ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream:
-                  FirebaseFirestore.instance
-                      .collection('sessions')
-                      .where('userId', isEqualTo: user.uid)
-                      .where(
-                        'startTime',
-                        isGreaterThanOrEqualTo:
-                            _startDate != null
-                                ? Timestamp.fromDate(_startDate!)
-                                : null,
-                      )
-                      .where(
-                        'startTime',
-                        isLessThanOrEqualTo:
-                            _endDate != null
-                                ? Timestamp.fromDate(
-                                  _endDate!.add(const Duration(days: 1)),
-                                )
-                                : null,
-                      )
-                      .where('categoryId', isEqualTo: _selectedCategoryId ?? '')
-                      .orderBy('startTime', descending: true)
-                      .snapshots(),
+            child: StreamBuilder<List<Session>>(
+              stream: _databaseService.getSessions(user.uid, orderByDate: true),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(child: Text('Error: ${snapshot.error}'));
@@ -595,13 +565,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final sessions =
-                    snapshot.data!.docs.map((doc) {
-                      return Session.fromMap(
-                        doc.id,
-                        doc.data() as Map<String, dynamic>,
-                      );
-                    }).toList();
+                final sessions = snapshot.data!
+                    .where((s) =>
+                        (_selectedCategoryId == null ||
+                            s.categoryId == _selectedCategoryId) &&
+                        (_startDate == null ||
+                            s.startTime.isAfter(_startDate!)) &&
+                        (_endDate == null ||
+                            s.startTime.isBefore(
+                                _endDate!.add(const Duration(days: 1)))))
+                    .toList();
 
                 return ListView.builder(
                   itemCount: sessions.length,

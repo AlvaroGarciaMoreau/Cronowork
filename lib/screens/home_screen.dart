@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cronowork/models/category.dart';
+import 'package:cronowork/services/auth_service.dart';
+import 'package:cronowork/services/database_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,12 +18,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Duration _elapsedTime = Duration.zero;
   DateTime? _startTime;
   Timer? _timer;
-  final _firestore = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
+  final _databaseService = DatabaseService();
+  final _authService = AuthService();
   String? _selectedCategoryId;
   Duration _totalElapsedTime = Duration.zero;
 
-  final user = FirebaseAuth.instance.currentUser!;
+  User get user => _authService.currentUser!;
 
   Future<void> _showNewSessionDialog() async {
     final descriptionController = TextEditingController();
@@ -32,14 +34,9 @@ class _HomeScreenState extends State<HomeScreen> {
     DateTime? selectedEndTime;
 
     // Obtener categorías
-    List<QueryDocumentSnapshot> categories = [];
+    List<Category> categories = [];
     try {
-      final snapshot =
-          await _firestore
-              .collection('categories')
-              .where('userId', isEqualTo: user.uid)
-              .get();
-      categories = snapshot.docs;
+      categories = await _databaseService.getCategories(user.uid).first;
     } catch (e) {
       debugPrint('Error fetching categories: $e');
     }
@@ -73,11 +70,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         border: OutlineInputBorder(),
                       ),
                       items:
-                          categories.map((doc) {
-                            final data = doc.data() as Map<String, dynamic>;
+                          categories.map((cat) {
                             return DropdownMenuItem<String>(
-                              value: doc.id,
-                              child: Text(data['name']),
+                              value: cat.id,
+                              child: Text(cat.name),
                             );
                           }).toList(),
                       onChanged: (value) {
@@ -222,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         if (selectedEndTime != null)
                           'endTime': Timestamp.fromDate(selectedEndTime!),
                       };
-                      await _firestore.collection('sessions').add(sessionData);
+                      await _databaseService.addSession(sessionData);
 
                       if (mounted) {
                         Navigator.pop(context);
@@ -360,7 +356,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final category = Category(id: '', name: name, userId: user.uid);
 
-      await _firestore.collection('categories').add(category.toMap());
+      await _databaseService.addCategory(category);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Categoría creada correctamente')),
@@ -416,12 +412,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           textCapitalization: TextCapitalization.sentences,
                         ),
                         const SizedBox(height: 16),
-                        StreamBuilder<QuerySnapshot>(
-                          stream:
-                              _firestore
-                                  .collection('categories')
-                                  .where('userId', isEqualTo: user.uid)
-                                  .snapshots(),
+                         StreamBuilder<List<Category>>(
+                          stream: _databaseService.getCategories(user.uid),
                           builder: (context, snapshot) {
                             if (!snapshot.hasData) {
                               return const Center(
@@ -429,15 +421,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               );
                             }
 
-                            final categories =
-                                snapshot.data!.docs
-                                    .map(
-                                      (doc) => Category.fromMap(
-                                        doc.id,
-                                        doc.data() as Map<String, dynamic>,
-                                      ),
-                                    )
-                                    .toList();
+                             final categories = snapshot.data!;
 
                             if (categories.isEmpty) {
                               return Column(
@@ -525,12 +509,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: () => Navigator.pop(context),
                       child: const Text('Cancelar'),
                     ),
-                    StreamBuilder<QuerySnapshot>(
-                      stream:
-                          _firestore
-                              .collection('categories')
-                              .where('userId', isEqualTo: user.uid)
-                              .snapshots(),
+                    StreamBuilder<List<Category>>(
+                      stream: _databaseService.getCategories(user.uid),
                       builder: (context, snapshot) {
                         return ElevatedButton(
                           onPressed: () {
@@ -614,7 +594,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _signOut() async {
     try {
-      await _auth.signOut();
+      await _authService.signOut();
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/login');
       }
